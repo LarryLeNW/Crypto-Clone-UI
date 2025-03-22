@@ -1,20 +1,13 @@
-import { useState, useEffect, useRef } from "react"
-import {
-  ChevronDown,
-  Star,
-  ChevronRight,
-  BarChart2,
-  Settings,
-  Maximize,
-  Camera,
-  RefreshCw,
-  ArrowLeft,
-  Info,
-  Lock,
-  Minus,
-  Plus,
-} from "lucide-react"
 import { createChart, Time } from 'lightweight-charts'
+import {
+  BarChart2,
+  Camera,
+  Maximize,
+  RefreshCw,
+  Settings,
+  Star
+} from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import data from '../data.json'
 
 type CoinType = 'TON' | 'BTC' | 'ETH' | 'NOT'
