@@ -63,107 +63,193 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
   const candleSeriesRef = useRef<any>(null)
+  const ma7SeriesRef = useRef<any>(null)
+  const ma25SeriesRef = useRef<any>(null)
+  const ma99SeriesRef = useRef<any>(null)
+  const [candleData, setCandleData] = useState<any>([])
+
+  const calculateMA = (data: any[], period: number) => {
+    const maData = [];
+    for (let i = period - 1; i < data.length; i++) {
+      const sum = data.slice(i - period + 1, i + 1).reduce((acc, candle) => acc + candle.close, 0);
+      maData.push({
+        time: data[i].time,
+        value: sum / period
+      });
+    }
+    return maData;
+  };
+
+  const fetchData = async () => {
+    try {
+      const response = await fetch('https://api3.minicorgi.xyz/chart/klines?limit=500&type=1')
+      const result = await response.json()
+      const formattedData = result.data.map((candle: any) => ({
+        time: Math.floor(Number(candle[0]) / 1000),
+        open: parseFloat(candle[1]),
+        high: parseFloat(candle[2]),
+        low: parseFloat(candle[3]),
+        close: parseFloat(candle[4]),
+        volume: parseFloat(candle[5])
+      }))
+      setCandleData(formattedData)
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    }
+  }
 
   useEffect(() => {
-    if (chartContainerRef.current) {
-      const chart = createChart(chartContainerRef.current, {
-        width: chartContainerRef.current.clientWidth,
-        height: chartContainerRef.current.clientHeight,
-        layout: {
-          background: { color: '#1e2329' },
-          textColor: '#d1d4dc',
-        },
-        grid: {
-          vertLines: { color: '#2B2B43' },
-          horzLines: { color: '#2B2B43' },
-        },
-        crosshair: {
-          mode: 1,
-          vertLine: {
-            width: 1,
-            color: '#2B2B43',
-            style: 0,
-          },
-          horzLine: {
-            width: 1,
-            color: '#2B2B43',
-            style: 0,
-          },
-        },
-        timeScale: {
-          borderColor: '#2B2B43',
-        },
-        rightPriceScale: {
-          borderColor: '#2B2B43',
-        },
-      })
-
-      chartRef.current = chart
-
-      const candlestickSeries = chart.addCandlestickSeries({
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350',
-        borderVisible: false,
-        priceFormat: {
-          type: 'price',
-          precision: 6,
-          minMove: 0.000001,
-        },
-      })
-
-      candleSeriesRef.current = candlestickSeries
-
-      const formattedData = marketData[selectedCoin].timeframes[selectedTimeframe].map(candle => ({
-        ...candle,
-        time: formatTimeToUTC(candle.time)
-      }));
-
-      candlestickSeries.setData(formattedData)
-
-      const initialVisibleLogicalRange = {
-        from: Math.max(0, formattedData.length - 100),
-        to: formattedData.length
-      };
-      chart.timeScale().setVisibleLogicalRange(initialVisibleLogicalRange);
-
-      const handleResize = () => {
-        if (chartContainerRef.current) {
-          chart.applyOptions({
-            width: chartContainerRef.current.clientWidth,
-            height: chartContainerRef.current.clientHeight,
-          })
-        }
-      }
-
-      window.addEventListener('resize', handleResize)
-
-      return () => {
-        window.removeEventListener('resize', handleResize)
-        chart.remove()
-      }
-    }
+    fetchData()
   }, [])
 
   useEffect(() => {
-    if (candleSeriesRef.current && chartRef.current) {
-      const timeframeData = marketData[selectedCoin]?.timeframes[selectedTimeframe];
-      if (!timeframeData) {
-        console.warn(`Không có dữ liệu cho ${selectedCoin} ở timeframe ${selectedTimeframe}`);
-        return;
+    if (!chartContainerRef.current || !candleData.length) return
+
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: chartContainerRef.current.clientHeight,
+      layout: {
+        background: { color: '#1e2329' },
+        textColor: '#d1d4dc',
+      },
+      grid: {
+        vertLines: { color: '#2B2B43' },
+        horzLines: { color: '#2B2B43' },
+      },
+      crosshair: {
+        mode: 1,
+        vertLine: {
+          width: 1,
+          color: '#2B2B43',
+          style: 0,
+        },
+        horzLine: {
+          width: 1,
+          color: '#2B2B43',
+          style: 0,
+        },
+      },
+      timeScale: {
+        borderColor: '#2B2B43',
+        timeVisible: true,
+        secondsVisible: false
+      },
+      rightPriceScale: {
+        borderColor: '#2B2B43',
+      },
+    })
+
+    chartRef.current = chart
+
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+      borderVisible: false,
+      priceFormat: {
+        type: 'price',
+        precision: 2,
+        minMove: 0.01,
+      },
+    })
+
+    // Thêm volume series
+    const volumeSeries = chart.addHistogramSeries({
+      color: '#26a69a',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: '', // Tạo scale riêng cho volume
+      scaleMargins: {
+        top: 0.8, // Đẩy volume xuống dưới
+        bottom: 0,
+      },
+    });
+
+    // Thêm các đường MA
+    const ma7Series = chart.addLineSeries({
+      color: '#F7CA4D',
+      lineWidth: 2,
+      title: 'MA7',
+    });
+
+    const ma25Series = chart.addLineSeries({
+      color: '#E065BC',
+      lineWidth: 2,
+      title: 'MA25',
+    });
+
+    const ma99Series = chart.addLineSeries({
+      color: '#8E5BE8',
+      lineWidth: 2,
+      title: 'MA99',
+    });
+
+    candleSeriesRef.current = candlestickSeries;
+    ma7SeriesRef.current = ma7Series;
+    ma25SeriesRef.current = ma25Series;
+    ma99SeriesRef.current = ma99Series;
+
+    // Cập nhật dữ liệu candlestick
+    candlestickSeries.setData(candleData);
+
+    // Cập nhật dữ liệu volume
+    const volumeData = candleData.map((d: any) => ({
+      time: d.time,
+      value: d.volume,
+      color: d.close >= d.open ? '#26a69a' : '#ef5350'
+    }));
+    volumeSeries.setData(volumeData);
+
+    // Tính và cập nhật các đường MA
+    const ma7Data = calculateMA(candleData, 7);
+    const ma25Data = calculateMA(candleData, 25);
+    const ma99Data = calculateMA(candleData, 99);
+
+    ma7Series.setData(ma7Data);
+    ma25Series.setData(ma25Data);
+    ma99Series.setData(ma99Data);
+
+    const visibleLogicalRange = {
+      from: Math.max(0, candleData.length - 50),
+      to: candleData.length
+    }
+    chart.timeScale().setVisibleLogicalRange(visibleLogicalRange)
+
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({
+          width: chartContainerRef.current.clientWidth,
+          height: chartContainerRef.current.clientHeight,
+        })
       }
+    }
 
-      const formattedData = timeframeData.map(candle => ({
-        ...candle,
-        time: formatTimeToUTC(candle.time)
-      }));
+    window.addEventListener('resize', handleResize)
 
-      candleSeriesRef.current.setData(formattedData);
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      chart.remove()
+    }
+  }, [candleData])
+
+  useEffect(() => {
+    if (candleSeriesRef.current && chartRef.current && ma7SeriesRef.current && ma25SeriesRef.current && ma99SeriesRef.current) {
+      candleSeriesRef.current.setData(candleData);
       
+      // Cập nhật các đường MA khi thay đổi timeframe
+      const ma7Data = calculateMA(candleData, 7);
+      const ma25Data = calculateMA(candleData, 25);
+      const ma99Data = calculateMA(candleData, 99);
+
+      ma7SeriesRef.current.setData(ma7Data);
+      ma25SeriesRef.current.setData(ma25Data);
+      ma99SeriesRef.current.setData(ma99Data);
+
       const visibleLogicalRange = {
-        from: Math.max(0, formattedData.length - 100),
-        to: formattedData.length
+        from: Math.max(0, candleData.length - 100),
+        to: candleData.length
       };
       chartRef.current.timeScale().setVisibleLogicalRange(visibleLogicalRange);
     }
