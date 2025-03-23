@@ -5,13 +5,17 @@ import {
   Maximize,
   RefreshCw,
   Settings,
-  Star
+  Star,
+  LineChart,
+  CandlestickChart,
+  CircleDot
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import data from '../data.json'
 
 type CoinType = 'TON' | 'BTC' | 'ETH' | 'NOT'
 type TimeframeType = '1m' | '5m' | '15m' | '1h' | '1d'
+type ChartType = 'Candles' | 'Hollow candles' | 'Line' | 'Step line' | 'Area' | 'Baseline' | 'Columns';
 
 interface CandleData {
   time: string
@@ -60,13 +64,55 @@ interface TradingProps {
 export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSelect }: TradingProps) {
   const [amount, setAmount] = useState("0")
   const [leverage, setLeverage] = useState(10)
+  const [selectedChartType, setSelectedChartType] = useState<ChartType>('Candles')
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
-  const candleSeriesRef = useRef<any>(null)
+  const seriesRef = useRef<any>(null)
   const ma7SeriesRef = useRef<any>(null)
   const ma25SeriesRef = useRef<any>(null)
   const ma99SeriesRef = useRef<any>(null)
   const [candleData, setCandleData] = useState<any>([])
+  const [showChartMenu, setShowChartMenu] = useState(false)
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      chartContainerRef.current?.requestFullscreen();
+      setIsFullscreen(true);
+      setTimeout(() => {
+        if (chartRef.current) {
+          chartRef.current.applyOptions({
+            width: window.innerWidth,
+            height: window.innerHeight,
+          });
+        }
+      }, 100);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setIsFullscreen(false);
+        setTimeout(() => {
+          if (chartRef.current && chartContainerRef.current) {
+            chartRef.current.applyOptions({
+              width: chartContainerRef.current.clientWidth,
+              height: chartContainerRef.current.clientHeight,
+            });
+          }
+        }, 100);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   const calculateMA = (data: any[], period: number) => {
     const maData = [];
@@ -102,8 +148,115 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
     fetchData()
   }, [])
 
+  const createChartSeries = (chart: any, type: ChartType) => {
+    try {
+      // Xóa series cũ nếu tồn tại
+      if (seriesRef.current && chart.series && chart.series.includes(seriesRef.current)) {
+        chart.removeSeries(seriesRef.current);
+      }
+
+      let series;
+      switch (type) {
+        case 'Candles':
+          series = chart.addCandlestickSeries({
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
+            borderVisible: false,
+          });
+          break;
+        case 'Hollow candles':
+          series = chart.addCandlestickSeries({
+            upColor: 'rgba(38, 166, 154, 0)',
+            downColor: 'rgba(239, 83, 80, 0)',
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ff3b3b',
+            borderVisible: true,
+            borderUpColor: '#26a69a',
+            borderDownColor: '#ff3b3b',
+          });
+          break;
+        case 'Line':
+          series = chart.addLineSeries({
+            color: '#2962FF',
+            lineWidth: 2,
+          });
+          break;
+        case 'Step line':
+          series = chart.addLineSeries({
+            color: '#2962FF',
+            lineWidth: 2,
+            lineStyle: 1,
+          });
+          break;
+        case 'Area':
+          series = chart.addAreaSeries({
+            topColor: 'rgba(41, 98, 255, 0.3)',
+            bottomColor: 'rgba(41, 98, 255, 0)',
+            lineColor: '#2962FF',
+            lineWidth: 2,
+          });
+          break;
+        case 'Baseline':
+          series = chart.addBaselineSeries({
+            baseValue: { type: 'price', price: 0 },
+            topFillColor1: 'rgba(38, 166, 154, 0.28)',
+            topFillColor2: 'rgba(38, 166, 154, 0.05)',
+            topLineColor: 'rgba(38, 166, 154, 1)',
+            bottomFillColor1: 'rgba(239, 83, 80, 0.28)',
+            bottomFillColor2: 'rgba(239, 83, 80, 0.05)',
+            bottomLineColor: 'rgba(239, 83, 80, 1)',
+          });
+          break;
+        case 'Columns':
+          series = chart.addHistogramSeries({
+            color: '#26a69a',
+            priceFormat: {
+              type: 'price',
+              precision: 2,
+              minMove: 0.01,
+            },
+            base: 0,
+            priceScaleId: 'right',
+            priceLineVisible: false,
+            lastValueVisible: true,
+            columnWidth: 0.8
+          });
+          break;
+        default:
+          series = chart.addCandlestickSeries({
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
+            borderVisible: false,
+          });
+      }
+
+      seriesRef.current = series;
+      return series;
+    } catch (error) {
+      console.error('Error creating chart series:', error);
+      const defaultSeries = chart.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+        borderVisible: false,
+      });
+      seriesRef.current = defaultSeries;
+      return defaultSeries;
+    }
+  };
+
   useEffect(() => {
-    if (!chartContainerRef.current || !candleData.length) return
+    if (!chartContainerRef.current || !candleData.length) return;
+
+    // Cleanup previous chart if exists
+    if (chartRef.current) {
+      chartRef.current.remove();
+    }
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -137,107 +290,125 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
       rightPriceScale: {
         borderColor: '#2B2B43',
       },
-    })
-
-    chartRef.current = chart
-
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-      borderVisible: false,
-      priceFormat: {
-        type: 'price',
-        precision: 2,
-        minMove: 0.01,
-      },
-    })
-
-    // Thêm volume series
-    const volumeSeries = chart.addHistogramSeries({
-      color: '#26a69a',
-      priceFormat: {
-        type: 'volume',
-      },
-      priceScaleId: '', // Tạo scale riêng cho volume
-      scaleMargins: {
-        top: 0.8, // Đẩy volume xuống dưới
-        bottom: 0,
-      },
     });
 
-    // Thêm các đường MA
-    const ma7Series = chart.addLineSeries({
-      color: '#F7CA4D',
-      lineWidth: 2,
-      title: 'MA7',
-    });
+    chartRef.current = chart;
 
-    const ma25Series = chart.addLineSeries({
-      color: '#E065BC',
-      lineWidth: 2,
-      title: 'MA25',
-    });
+    try {
+      // Tạo series dựa trên loại biểu đồ được chọn
+      const series = createChartSeries(chart, selectedChartType);
 
-    const ma99Series = chart.addLineSeries({
-      color: '#8E5BE8',
-      lineWidth: 2,
-      title: 'MA99',
-    });
+      // Format dữ liệu cho Columns
+      const formattedData = candleData.map((d: any) => {
+        if (selectedChartType === 'Line' || selectedChartType === 'Step line') {
+          return {
+            time: d.time,
+            value: d.close
+          };
+        } else if (selectedChartType === 'Area' || selectedChartType === 'Baseline') {
+          return {
+            time: d.time,
+            value: d.close
+          };
+        } else if (selectedChartType === 'Columns') {
+          return {
+            time: d.time,
+            value: d.close,
+            color: d.close >= d.open ? '#26a69a' : '#ff3b3b'
+          };
+        }
+        return d;
+      });
 
-    candleSeriesRef.current = candlestickSeries;
-    ma7SeriesRef.current = ma7Series;
-    ma25SeriesRef.current = ma25Series;
-    ma99SeriesRef.current = ma99Series;
+      series.setData(formattedData);
 
-    // Cập nhật dữ liệu candlestick
-    candlestickSeries.setData(candleData);
+      // Thêm volume series chỉ khi là kiểu Candles
+      if (selectedChartType === 'Candles') {
+        const volumeSeries = chart.addHistogramSeries({
+          color: '#26a69a',
+          priceFormat: {
+            type: 'volume',
+          },
+          priceScaleId: '',
+          scaleMargins: {
+            top: 0.8,
+            bottom: 0,
+          },
+        });
 
-    // Cập nhật dữ liệu volume
-    const volumeData = candleData.map((d: any) => ({
-      time: d.time,
-      value: d.volume,
-      color: d.close >= d.open ? '#26a69a' : '#ef5350'
-    }));
-    volumeSeries.setData(volumeData);
+        // Cập nhật dữ liệu volume
+        const volumeData = candleData.map((d: any) => ({
+          time: d.time,
+          value: d.volume,
+          color: d.close >= d.open ? '#26a69a' : '#ef5350'
+        }));
+        volumeSeries.setData(volumeData);
+      }
 
-    // Tính và cập nhật các đường MA
-    const ma7Data = calculateMA(candleData, 7);
-    const ma25Data = calculateMA(candleData, 25);
-    const ma99Data = calculateMA(candleData, 99);
+      // Thêm các đường MA chỉ khi là kiểu Candles
+      if (selectedChartType === 'Candles') {
+        const ma7Series = chart.addLineSeries({
+          color: '#F7CA4D',
+          lineWidth: 2,
+          title: 'MA7'
+        });
 
-    ma7Series.setData(ma7Data);
-    ma25Series.setData(ma25Data);
-    ma99Series.setData(ma99Data);
+        const ma25Series = chart.addLineSeries({
+          color: '#E065BC',
+          lineWidth: 2,
+          title: 'MA25'
+        });
 
-    const visibleLogicalRange = {
-      from: Math.max(0, candleData.length - 50),
-      to: candleData.length
+        const ma99Series = chart.addLineSeries({
+          color: '#8E5BE8',
+          lineWidth: 2,
+          title: 'MA99'
+        });
+
+        ma7SeriesRef.current = ma7Series;
+        ma25SeriesRef.current = ma25Series;
+        ma99SeriesRef.current = ma99Series;
+
+        // Cập nhật các đường MA
+        const ma7Data = calculateMA(candleData, 7);
+        const ma25Data = calculateMA(candleData, 25);
+        const ma99Data = calculateMA(candleData, 99);
+
+        ma7Series.setData(ma7Data);
+        ma25Series.setData(ma25Data);
+        ma99Series.setData(ma99Data);
+      }
+
+      const visibleLogicalRange = {
+        from: Math.max(0, candleData.length - 50),
+        to: candleData.length
+      }
+      chart.timeScale().setVisibleLogicalRange(visibleLogicalRange);
+    } catch (error) {
+      console.error('Error setting up chart:', error);
     }
-    chart.timeScale().setVisibleLogicalRange(visibleLogicalRange)
 
     const handleResize = () => {
       if (chartContainerRef.current) {
         chart.applyOptions({
           width: chartContainerRef.current.clientWidth,
           height: chartContainerRef.current.clientHeight,
-        })
+        });
       }
-    }
+    };
 
-    window.addEventListener('resize', handleResize)
+    window.addEventListener('resize', handleResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize)
-      chart.remove()
-    }
-  }, [candleData])
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, [candleData, selectedChartType]);
 
   useEffect(() => {
-    if (candleSeriesRef.current && chartRef.current && ma7SeriesRef.current && ma25SeriesRef.current && ma99SeriesRef.current) {
-      candleSeriesRef.current.setData(candleData);
-      
+    if (seriesRef.current && chartRef.current && ma7SeriesRef.current && ma25SeriesRef.current && ma99SeriesRef.current) {
+      seriesRef.current.setData(candleData);
+
       // Cập nhật các đường MA khi thay đổi timeframe
       const ma7Data = calculateMA(candleData, 7);
       const ma25Data = calculateMA(candleData, 25);
@@ -305,67 +476,132 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
               </div>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <button className="p-2 hover:bg-[#1e2329] rounded-md">
-              <BarChart2 className="w-5 h-5" />
-            </button>
-            <button className="p-2 hover:bg-[#1e2329] rounded-md">
-              <Settings className="w-5 h-5" />
-            </button>
-            <button className="p-2 hover:bg-[#1e2329] rounded-md">
-              <Maximize className="w-5 h-5" />
-            </button>
-            <button className="p-2 hover:bg-[#1e2329] rounded-md">
-              <Camera className="w-5 h-5" />
-            </button>
-          </div>
+
         </div>
 
         {/* Chart area */}
         <div className="flex-1 p-4">
-          <div className="flex items-center space-x-2 mb-4">
-            <div className="flex rounded-md overflow-hidden">
-              <button 
-                className={`px-3 py-1 ${selectedTimeframe === "1m" ? "bg-blue-500" : "bg-[#1e2329]"}`} 
-                onClick={() => onTimeframeSelect("1m")}
-              >
-                1m
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2 ">
+              <div className="flex rounded-md overflow-hidden">
+                <button
+                  className={`px-3 py-1 ${selectedTimeframe === "1m" ? "bg-blue-500" : "bg-[#1e2329]"}`}
+                  onClick={() => onTimeframeSelect("1m")}
+                >
+                  1m
+                </button>
+                <button
+                  className={`px-3 py-1 ${selectedTimeframe === "5m" ? "bg-blue-500" : "bg-[#1e2329]"}`}
+                  onClick={() => onTimeframeSelect("5m")}
+                >
+                  5m
+                </button>
+                <button
+                  className={`px-3 py-1 ${selectedTimeframe === "15m" ? "bg-blue-500" : "bg-[#1e2329]"}`}
+                  onClick={() => onTimeframeSelect("15m")}
+                >
+                  15m
+                </button>
+                <button
+                  className={`px-3 py-1 ${selectedTimeframe === "1h" ? "bg-blue-500" : "bg-[#1e2329]"}`}
+                  onClick={() => onTimeframeSelect("1h")}
+                >
+                  1h
+                </button>
+                <button
+                  className={`px-3 py-1 ${selectedTimeframe === "1d" ? "bg-blue-500" : "bg-[#1e2329]"}`}
+                  onClick={() => onTimeframeSelect("1d")}
+                >
+                  1d
+                </button>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  className={`px-3 py-1 rounded flex items-center space-x-1 ${selectedChartType === 'Line' ? 'bg-blue-500' : 'bg-[#1e2329]'}`}
+                  onClick={() => setSelectedChartType('Line')}
+                >
+                  <LineChart className="w-4 h-4" />
+                  <span>Line</span>
+                </button>
+                <button
+                  className={`px-3 py-1 rounded flex items-center space-x-1 ${selectedChartType === 'Candles' ? 'bg-blue-500' : 'bg-[#1e2329]'}`}
+                  onClick={() => setSelectedChartType('Candles')}
+                >
+                  <CandlestickChart className="w-4 h-4" />
+                  <span>Candles</span>
+                </button>
+                <button
+                  className={`px-3 py-1 rounded flex items-center space-x-1 ${selectedChartType === 'Hollow candles' ? 'bg-blue-500' : 'bg-[#1e2329]'}`}
+                  onClick={() => setSelectedChartType('Hollow candles')}
+                >
+                  <CircleDot className="w-4 h-4" />
+                  <span>Hollow</span>
+                </button>
+                <div className="relative">
+                  <button
+                    className="p-2 hover:bg-[#1e2329] rounded-md flex items-center"
+                    onClick={() => setShowChartMenu(!showChartMenu)}
+                  >
+                    <BarChart2 className="w-4 h-4 mr-1" />
+                    <span className="text-sm">More</span>
+                  </button>
+
+                  {showChartMenu && (
+                    <div className="absolute top-full left-0 mt-1 bg-[#1e2329] border border-gray-800 rounded-md shadow-lg z-50">
+                      {(['Step line', 'Area', 'Baseline', 'Columns'] as ChartType[]).map((type) => (
+                        <button
+                          key={type}
+                          className={`w-full px-4 py-2 text-left hover:bg-[#2b3139] ${selectedChartType === type ? 'bg-[#2b3139]' : ''}`}
+                          onClick={() => {
+                            setSelectedChartType(type);
+                            setShowChartMenu(false);
+                          }}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button className="p-2 hover:bg-[#1e2329] rounded-md">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+
+            </div>
+            <div className="flex items-center space-x-2 ml-auto">
+              <button className="p-2 hover:bg-[#1e2329] rounded-md">
+                <BarChart2 className="w-5 h-5" />
+              </button>
+              <button className="p-2 hover:bg-[#1e2329] rounded-md">
+                <Settings className="w-5 h-5" />
               </button>
               <button 
-                className={`px-3 py-1 ${selectedTimeframe === "5m" ? "bg-blue-500" : "bg-[#1e2329]"}`} 
-                onClick={() => onTimeframeSelect("5m")}
+                className="p-2 hover:bg-[#1e2329] rounded-md"
+                onClick={toggleFullscreen}
               >
-                5m
+                {isFullscreen ? (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+                  </svg>
+                ) : (
+                  <Maximize className="w-5 h-5" />
+                )}
               </button>
-              <button 
-                className={`px-3 py-1 ${selectedTimeframe === "15m" ? "bg-blue-500" : "bg-[#1e2329]"}`} 
-                onClick={() => onTimeframeSelect("15m")}
-              >
-                15m
-              </button>
-              <button 
-                className={`px-3 py-1 ${selectedTimeframe === "1h" ? "bg-blue-500" : "bg-[#1e2329]"}`} 
-                onClick={() => onTimeframeSelect("1h")}
-              >
-                1h
-              </button>
-              <button 
-                className={`px-3 py-1 ${selectedTimeframe === "1d" ? "bg-blue-500" : "bg-[#1e2329]"}`} 
-                onClick={() => onTimeframeSelect("1d")}
-              >
-                1d
+              <button className="p-2 hover:bg-[#1e2329] rounded-md">
+                <Camera className="w-5 h-5" />
               </button>
             </div>
-            <button className="p-2 hover:bg-[#1e2329] rounded-md">
-              <RefreshCw className="w-4 h-4" />
-            </button>
           </div>
-          <div ref={chartContainerRef} className="bg-[#1e2329] rounded-lg h-[calc(100%-2rem)]"></div>
+          <div 
+            ref={chartContainerRef} 
+            className={`bg-[#1e2329] rounded-lg ${isFullscreen ? 'fixed inset-0 z-50' : 'h-[calc(100%-2rem)]'}`}
+          ></div>
         </div>
       </div>
 
       {/* Right sidebar */}
-      <div className="w-80 border-l border-gray-800">
+      <div className={`w-80 border-l border-gray-800 ${isFullscreen ? 'hidden' : ''}`}>
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <button className="flex-1 py-2 bg-green-500 text-white rounded-l-md">Long</button>
