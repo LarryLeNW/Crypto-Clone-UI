@@ -18,21 +18,6 @@ type CoinType = 'TON' | 'BTC' | 'ETH' | 'NOT'
 type TimeframeType = '1m' | '5m' | '15m' | '1h' | '1d'
 type ChartType = 'Candles' | 'Hollow candles' | 'Line' | 'Step line' | 'Area' | 'Baseline' | 'Columns';
 
-interface CandleData {
-  time: string
-  open: number
-  high: number
-  low: number
-  close: number
-}
-
-interface TimeframeData {
-  '1m': CandleData[]
-  '5m': CandleData[]
-  '15m': CandleData[]
-  '1h': CandleData[]
-  '1d': CandleData[]
-}
 
 interface TradingProps {
   selectedCoin: CoinType;
