@@ -8,7 +8,9 @@ import {
   Star,
   LineChart,
   CandlestickChart,
-  CircleDot
+  CircleDot,
+  TrendingUp,
+  TrendingDown
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import data from '../data.json'
@@ -66,6 +68,7 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
   const [leverage, setLeverage] = useState(10)
   const [selectedChartType, setSelectedChartType] = useState<ChartType>('Candles')
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [tradeType, setTradeType] = useState<'long' | 'short'>('long')
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
   const seriesRef = useRef<any>(null)
@@ -77,16 +80,11 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      chartContainerRef.current?.requestFullscreen();
-      setIsFullscreen(true);
-      setTimeout(() => {
-        if (chartRef.current) {
-          chartRef.current.applyOptions({
-            width: window.innerWidth,
-            height: window.innerHeight,
-          });
-        }
-      }, 100);
+      const container = chartContainerRef.current;
+      if (container) {
+        container.requestFullscreen();
+        setIsFullscreen(true);
+      }
     } else {
       document.exitFullscreen();
       setIsFullscreen(false);
@@ -97,14 +95,6 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
         setIsFullscreen(false);
-        setTimeout(() => {
-          if (chartRef.current && chartContainerRef.current) {
-            chartRef.current.applyOptions({
-              width: chartContainerRef.current.clientWidth,
-              height: chartContainerRef.current.clientHeight,
-            });
-          }
-        }, 100);
       }
     };
 
@@ -150,7 +140,6 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
 
   const createChartSeries = (chart: any, type: ChartType) => {
     try {
-      // Xóa series cũ nếu tồn tại
       if (seriesRef.current && chart.series && chart.series.includes(seriesRef.current)) {
         chart.removeSeries(seriesRef.current);
       }
@@ -253,14 +242,14 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
   useEffect(() => {
     if (!chartContainerRef.current || !candleData.length) return;
 
-    // Cleanup previous chart if exists
     if (chartRef.current) {
       chartRef.current.remove();
     }
 
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight,
+    const container = chartContainerRef.current;
+    const chart = createChart(container, {
+      width: container.clientWidth,
+      height: container.clientHeight,
       layout: {
         background: { color: '#1e2329' },
         textColor: '#d1d4dc',
@@ -294,11 +283,22 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
 
     chartRef.current = chart;
 
+    const resizeObserver = new ResizeObserver(entries => {
+      const { width, height } = entries[0].contentRect;
+      if (chartRef.current) {
+        chartRef.current.applyOptions({
+          width,
+          height,
+        });
+        chartRef.current.timeScale().fitContent();
+      }
+    });
+
+    resizeObserver.observe(container);
+
     try {
-      // Tạo series dựa trên loại biểu đồ được chọn
       const series = createChartSeries(chart, selectedChartType);
 
-      // Format dữ liệu cho Columns
       const formattedData = candleData.map((d: any) => {
         if (selectedChartType === 'Line' || selectedChartType === 'Step line') {
           return {
@@ -322,7 +322,6 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
 
       series.setData(formattedData);
 
-      // Thêm volume series chỉ khi là kiểu Candles
       if (selectedChartType === 'Candles') {
         const volumeSeries = chart.addHistogramSeries({
           color: '#26a69a',
@@ -336,7 +335,6 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
           },
         });
 
-        // Cập nhật dữ liệu volume
         const volumeData = candleData.map((d: any) => ({
           time: d.time,
           value: d.volume,
@@ -345,7 +343,6 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
         volumeSeries.setData(volumeData);
       }
 
-      // Thêm các đường MA chỉ khi là kiểu Candles
       if (selectedChartType === 'Candles') {
         const ma7Series = chart.addLineSeries({
           color: '#F7CA4D',
@@ -369,7 +366,6 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
         ma25SeriesRef.current = ma25Series;
         ma99SeriesRef.current = ma99Series;
 
-        // Cập nhật các đường MA
         const ma7Data = calculateMA(candleData, 7);
         const ma25Data = calculateMA(candleData, 25);
         const ma99Data = calculateMA(candleData, 99);
@@ -388,28 +384,16 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
       console.error('Error setting up chart:', error);
     }
 
-    const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight,
-        });
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-
     return () => {
-      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       chart.remove();
     };
-  }, [candleData, selectedChartType]);
+  }, [candleData, selectedChartType, isFullscreen]);
 
   useEffect(() => {
     if (seriesRef.current && chartRef.current && ma7SeriesRef.current && ma25SeriesRef.current && ma99SeriesRef.current) {
       seriesRef.current.setData(candleData);
 
-      // Cập nhật các đường MA khi thay đổi timeframe
       const ma7Data = calculateMA(candleData, 7);
       const ma25Data = calculateMA(candleData, 25);
       const ma99Data = calculateMA(candleData, 99);
@@ -429,9 +413,9 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
   return (
     <div className="flex flex-1 overflow-hidden">
       {/* Main trading area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-full">
         {/* Chart header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-800">
+        <div className={`flex items-center justify-between p-4 border-b border-gray-800 ${isFullscreen ? 'hidden' : ''}`}>
           <div className="flex items-center space-x-4">
             <div className="flex items-center">
               <div className="w-8 h-8 rounded-full bg-[#0088CC] flex items-center justify-center mr-2">
@@ -480,8 +464,8 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
         </div>
 
         {/* Chart area */}
-        <div className="flex-1 p-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="flex-3 p-4">
+          <div className={`flex items-center justify-between mb-4 ${isFullscreen ? 'hidden' : ''}`}>
             <div className="flex items-center space-x-2 ">
               <div className="flex rounded-md overflow-hidden">
                 <button
@@ -576,7 +560,7 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
               <button className="p-2 hover:bg-[#1e2329] rounded-md">
                 <Settings className="w-5 h-5" />
               </button>
-              <button 
+              <button
                 className="p-2 hover:bg-[#1e2329] rounded-md"
                 onClick={toggleFullscreen}
               >
@@ -593,19 +577,37 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
               </button>
             </div>
           </div>
-          <div 
-            ref={chartContainerRef} 
-            className={`bg-[#1e2329] rounded-lg ${isFullscreen ? 'fixed inset-0 z-50' : 'h-[calc(100%-2rem)]'}`}
+          <div
+            ref={chartContainerRef}
+            className={`bg-[#1e2329] rounded-lg ${isFullscreen ? 'fixed inset-0 z-50' : 'h-[calc(100vh-300px)]'}`}
           ></div>
         </div>
       </div>
 
       {/* Right sidebar */}
-      <div className={`w-80 border-l border-gray-800 ${isFullscreen ? 'hidden' : ''}`}>
+      <div className={`w-[280px] border-l border-gray-800 transition-opacity duration-200 ${isFullscreen ? 'hidden' : ''}`}>
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
-            <button className="flex-1 py-2 bg-green-500 text-white rounded-l-md">Long</button>
-            <button className="flex-1 py-2 bg-[#1e2329] text-white rounded-r-md">Short</button>
+            <button
+              className={`flex-1 py-2 rounded-l-md transition-colors flex items-center justify-center gap-2 ${tradeType === 'long'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-[#1e2329] text-gray-400'
+                }`}
+              onClick={() => setTradeType('long')}
+            >
+              <TrendingUp className={`w-4 h-4 ${tradeType === 'short' ? 'text-green-500' : ''}`} />
+              <span>Long</span>
+            </button>
+            <button
+              className={`flex-1 py-2 rounded-r-md transition-colors flex items-center justify-center gap-2 ${tradeType === 'short'
+                  ? 'bg-red-500 text-white'
+                  : 'bg-[#1e2329] text-gray-400'
+                }`}
+              onClick={() => setTradeType('short')}
+            >
+              <TrendingDown className={`w-4 h-4 ${tradeType === 'long' ? 'text-red-500' : ''}`} />
+              <span >Short</span>
+            </button>
           </div>
           <div className="space-y-4">
             <div>
