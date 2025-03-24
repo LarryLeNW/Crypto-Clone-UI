@@ -1,4 +1,4 @@
-import { createChart, Time } from 'lightweight-charts'
+import { createChart } from 'lightweight-charts'
 import {
   BarChart2,
   Camera,
@@ -13,7 +13,6 @@ import {
   TrendingDown
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import data from '../data.json'
 
 type CoinType = 'TON' | 'BTC' | 'ETH' | 'NOT'
 type TimeframeType = '1m' | '5m' | '15m' | '1h' | '1d'
@@ -34,13 +33,6 @@ interface TimeframeData {
   '1h': CandleData[]
   '1d': CandleData[]
 }
-
-interface CoinData {
-  name: string
-  symbol: string
-  timeframes: TimeframeData
-}
-
 
 interface TradingProps {
   selectedCoin: CoinType;
