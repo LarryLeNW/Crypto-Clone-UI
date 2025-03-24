@@ -41,21 +41,6 @@ interface CoinData {
   timeframes: TimeframeData
 }
 
-type MarketData = Record<CoinType, CoinData>
-
-const marketData = data as MarketData
-
-const formatTimeToUTC = (timeStr: string): Time => {
-  if (timeStr.includes('-')) {
-    if (timeStr.includes(' ')) {
-      const date = new Date(timeStr.replace(' ', 'T'));
-      return Math.floor(date.getTime() / 1000) as Time;
-    } else {
-      return timeStr as Time;
-    }
-  }
-  return timeStr as Time;
-};
 
 interface TradingProps {
   selectedCoin: CoinType;
