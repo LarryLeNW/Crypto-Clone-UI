@@ -80,7 +80,7 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
 
   const fetchData = async () => {
     try {
-      const response = await fetch('https://api3.minicorgi.xyz/chart/klines?limit=500&type=1')
+      const response = await fetch('https://api3.minicorgi.xyz/chart/klines?limit=10000&type=1')
       const result = await response.json()
       const formattedData = result.data.map((candle: any) => ({
         time: Math.floor(Number(candle[0]) / 1000),
@@ -552,8 +552,8 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
           <div className="flex items-center justify-between mb-4">
             <button
               className={`flex-1 py-2 rounded-l-md transition-colors flex items-center justify-center gap-2 ${tradeType === 'long'
-                  ? 'bg-green-500 text-white'
-                  : 'bg-[#1e2329] text-gray-400'
+                ? 'bg-green-500 text-white'
+                : 'bg-[#1e2329] text-gray-400'
                 }`}
               onClick={() => setTradeType('long')}
             >
@@ -562,8 +562,8 @@ export default function Trading({ selectedCoin, selectedTimeframe, onTimeframeSe
             </button>
             <button
               className={`flex-1 py-2 rounded-r-md transition-colors flex items-center justify-center gap-2 ${tradeType === 'short'
-                  ? 'bg-red-500 text-white'
-                  : 'bg-[#1e2329] text-gray-400'
+                ? 'bg-red-500 text-white'
+                : 'bg-[#1e2329] text-gray-400'
                 }`}
               onClick={() => setTradeType('short')}
             >
