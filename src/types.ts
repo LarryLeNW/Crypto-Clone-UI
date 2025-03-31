@@ -7,11 +7,15 @@ export interface CandleData {
   high: number
   low: number
   close: number
-  volume: number
+  volume?: number
 }
 
 export interface TimeframeData {
-  [key: string]: CandleData[]
+  '1m': CandleData[]
+  '5m': CandleData[]
+  '15m': CandleData[]
+  '1h': CandleData[]
+  '1d': CandleData[]
 }
 
 export interface CoinData {
