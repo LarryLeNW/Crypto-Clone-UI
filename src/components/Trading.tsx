@@ -1,19 +1,18 @@
 import { createChart } from 'lightweight-charts';
 import {
+  ArrowDownWideNarrow,
   BarChart2,
   Camera,
+  CandlestickChart,
+  CircleDot,
+  LineChart,
   Maximize,
   RefreshCw,
   Settings,
   Star,
-  LineChart,
-  CandlestickChart,
-  CircleDot,
-  TrendingUp,
   TrendingDown,
-  Menu,
-  X,
-  ArrowDownWideNarrow,
+  TrendingUp,
+  X
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import data from '../data.json';
